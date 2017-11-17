@@ -1,0 +1,14 @@
+body {
+  padding: 1em;
+  font-family: sans-serif;
+}
+
+.error {
+  padding: 1em;
+  background: red;
+}
+
+.success {
+  padding: 1em;
+  background: green;
+}
