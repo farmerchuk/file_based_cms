@@ -5,6 +5,8 @@ require "sinatra/reloader"
 require "sinatra/content_for"
 require "tilt/erubis"
 require "redcarpet"
+require "yaml"
+require "bcrypt"
 
 configure do
   set :erb, :escape_html => true
@@ -18,6 +20,17 @@ def files_path
   else
     File.expand_path('../files', __FILE__)
   end
+end
+
+def load_user_credentials
+  users_path =
+    if ENV["RACK_ENV"] == "test"
+      File.expand_path('../test/users.yml', __FILE__)
+    else
+      File.expand_path('../users.yml', __FILE__)
+    end
+
+  YAML.load_file(users_path)
 end
 
 def render_markdown(text)
@@ -45,6 +58,28 @@ def valid_file(file_name)
   File.file?(file_path)
 end
 
+def user_signed_in?
+  session[:username]
+end
+
+def redirect_unless_signed_in
+  unless user_signed_in?
+    session[:error] = "You must be logged in to do that."
+    redirect "/"
+  end
+end
+
+def valid_credentials?(username, password)
+  user_credentials = load_user_credentials
+
+  if user_credentials[username]
+    bcrypt_password = BCrypt::Password.new(user_credentials[username])
+    bcrypt_password == password
+  else
+    false
+  end
+end
+
 # Routes
 
 get "/" do
@@ -53,7 +88,33 @@ get "/" do
   erb :files, layout: :layout
 end
 
+get "/signin" do
+  erb :signin, layout: :layout
+end
+
+post "/signin" do
+  username = params[:username]
+
+  if valid_credentials?(username, params[:password])
+    session[:username] = params[:username]
+    session[:success] = "Welcome!"
+    redirect "/"
+  else
+    status 422
+    session[:error] = "Username or password incorrect."
+    erb :signin, layout: :layout
+  end
+end
+
+post "/signout" do
+  session.delete(:username)
+  session[:success] = "You were successfully signed out"
+  redirect "/signin"
+end
+
 get "/new" do
+  redirect_unless_signed_in
+
   erb :new_file, layout: :layout
 end
 
@@ -69,6 +130,8 @@ get "/:filename" do
 end
 
 post "/new" do
+  redirect_unless_signed_in
+
   file_name = params[:file_name]
   file_path = File.join(files_path, file_name)
 
@@ -78,11 +141,14 @@ post "/new" do
     erb :new_file, layout: :layout
   else
     File.new(file_path, "w")
+    session[:success] = "#{file_name} successfully created!"
     redirect "/"
   end
 end
 
 post "/:filename" do
+  redirect_unless_signed_in
+
   file_name = params[:filename]
   file_path = File.join(files_path, file_name)
   content = params[:content]
@@ -96,6 +162,8 @@ post "/:filename" do
 end
 
 get "/:filename/edit" do
+  redirect_unless_signed_in
+
   @file_name = params[:filename]
   @content = load_file_content(@file_name)
   headers["Content-Type"] = "text/html"
@@ -103,6 +171,8 @@ get "/:filename/edit" do
 end
 
 post "/:filename/delete" do
+  redirect_unless_signed_in
+
   file_name = params[:filename]
   file_path = File.join(files_path, file_name)
   File.delete(file_path)

@@ -12,3 +12,14 @@
     </li>
   <% end %>
 </ul>
+
+<% if session[:username] %>
+  <p class="user-status">Currently logged in as: <%= session[:username] %></p>
+  <form method="post" action="/signout">
+    <button type="submit">Sign-out</button>
+  </form>
+<% else %>
+  <form method="get" action="/signin">
+    <button type="submit">Sign-in</button>
+  </form>
+<% end %>

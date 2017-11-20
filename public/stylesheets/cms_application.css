@@ -12,3 +12,8 @@ body {
   padding: 1em;
   background: green;
 }
+
+.user-status {
+  font-size: .9em;
+  font-style: italic;
+}
